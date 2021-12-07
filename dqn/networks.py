@@ -185,8 +185,10 @@ class GymNetwork(nn.Module):
             if self._use_cuda:
                 idx = idx.cuda()
             if q.dim() == 2:
+                idx = idx.long()
                 q_idx = q.gather(1, idx.unsqueeze(-1))
             else:
+                idx = idx.long()
                 q_idx = q.gather(1, idx.view(-1, 1).repeat(
                     1, self._max_actions).unsqueeze(1))
 
