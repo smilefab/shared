@@ -1,4 +1,5 @@
 from tqdm import tqdm
+import numpy as np
 
 
 class Core(object):
@@ -15,18 +16,29 @@ class Core(object):
         self._episode_steps = [None for _ in range(self._n_mdp)]
         self._n_steps_per_fit = None
 
+        self._sampling = 'uniform'
+        self._lp_probabilities = np.ones((self._n_mdp,))
+
+        self.update_lp_condition = lambda: False
+
+        self._gammas = np.array([mdp.info.gamma for mdp in self.mdp])
+
     def learn(self, n_steps=None, n_steps_per_fit=None, render=False,
               quiet=False):
         self._n_steps_per_fit = n_steps_per_fit
 
         fit_condition = \
             lambda: self._current_steps_counter >= self._n_steps_per_fit
+        
+        self.update_lp_condition = lambda: self.agent._n_updates % self.agent._target_update_frequency == 0
 
         self._run(n_steps, fit_condition, render, quiet)
 
     def evaluate(self, n_steps=None, render=False,
                  quiet=False):
         fit_condition = lambda: False
+
+        self.update_lp_condition = lambda: False
 
         return self._run(n_steps, fit_condition, render, quiet)
 
@@ -40,6 +52,21 @@ class Core(object):
         return self._run_impl(move_condition, fit_condition, steps_progress_bar,
                               render)
 
+    def _sample_tasks(self):
+        if self._sampling == 'prism':
+            sampled_tasks = np.random.choice(self._n_mdp, self._n_mdp, p=self._lp_probabilities)
+            tasks = list(sampled_tasks)
+        else:
+            tasks = range(self._n_mdp)
+        return tasks
+
+    def _compute_td_errors(self):
+        pass
+
+    def _update_lp(self):
+        pass
+    
+
     def _run_impl(self, move_condition, fit_condition, steps_progress_bar,
                   render):
         self._total_steps_counter = 0
@@ -48,7 +75,8 @@ class Core(object):
         dataset = list()
         last = [True] * self._n_mdp
         while move_condition():
-            for i in range(self._n_mdp):
+            tasks = self._sample_tasks()
+            for i in tasks:
                 if last[i]:
                     self.reset(i)
 
@@ -64,6 +92,10 @@ class Core(object):
             if fit_condition():
                 self.agent.fit(dataset)
                 self._current_steps_counter = 0
+
+                if self.update_lp_condition():
+                    self._compute_td_errors()
+                    self._update_lp()
 
                 for c in self.callbacks:
                     callback_pars = dict(dataset=dataset)
