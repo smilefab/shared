@@ -1,5 +1,7 @@
 from copy import deepcopy
 
+import numpy as np
+
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -82,6 +84,12 @@ class DQN(Agent):
         self._absorbing = np.zeros(n_samples)
         self._idxs = np.zeros(n_samples, dtype=np.int)
         self._is_weight = np.zeros(n_samples)
+
+        self._n_td_samples_replay_memory_per_task = 1000 #TODO: parameters for init
+        assert self._n_td_samples_replay_memory_per_task < max_replay_size
+        self._td_errors = [[] for i in range(self._n_games)]
+        self._lp_probabilities = np.ones(self._n_games) / self._n_games
+
 
     def fit(self, dataset):
         self._fit(dataset)
@@ -204,25 +212,96 @@ class DQN(Agent):
         self.target_approximator.model.set_weights(
             self.approximator.model.get_weights())
 
-    def _next_q(self):
-        q = self.target_approximator.predict(self._next_state,
-                                             idx=self._next_state_idxs)
+    def _get_samples_from_replay_memory(self):
+        n_samples = np.zeros(self._n_games, np.int64)
 
-        out_q = np.zeros(self._batch_size * self._n_games)
+        # Getting amount of samples from each task in the replay memory
+        for i in range(len(self._replay_memory)):
+            if self._replay_memory[i]._full:
+                n_samples[i] = self._n_td_samples_replay_memory_per_task
+            else:
+                n_samples[i] = min(int(self._replay_memory[i]._idx), self._n_td_samples_replay_memory_per_task)
 
-        for i in range(self._n_games):
-            start = self._batch_size * i
-            stop = start + self._batch_size
-            if np.any(self._absorbing[start:stop]):
-                q[start:stop] *= 1 - self._absorbing[start:stop].reshape(-1, 1)
+        # Initializing variables
+        state_dim = self._state.shape[1]
+        state_idxs = np.zeros(sum(n_samples), np.int64)
+        state = np.zeros((sum(n_samples), state_dim))
+        action = np.zeros((sum(n_samples), 1), np.int64)
+        reward = np.zeros(sum(n_samples))
+        next_state_idxs = np.zeros(sum(n_samples), np.int64)
+        next_state = np.zeros((sum(n_samples), state_dim))
+        absorbing = np.zeros(sum(n_samples))
+        start = 0 #TODO: eliminate start/stop
+        stop = 0
+
+        # Getting samples out of the replay memory
+        for i in range(len(self._replay_memory)):
+            game_state, game_action, game_reward, game_next_state, game_absorbing, _ = self._replay_memory[i].get(
+                n_samples[i])#, replace=False) #TODO: Question: where does arg replace come from?
+
+            stop = stop + n_samples[i]
+
+            state_idxs[start:stop] = np.ones(n_samples[i]) * i
+            state[start:stop, :self._n_input_per_mdp[i][0]] = game_state
+            action[start:stop] = game_action
+            reward[start:stop] = game_reward
+            next_state_idxs[start:stop] = np.ones(n_samples[i]) * i
+            next_state[start:stop, :self._n_input_per_mdp[i][0]] = game_next_state
+            absorbing[start:stop] = game_absorbing
+
+            start = stop
+        
+        return state, state_idxs, action, reward, next_state, next_state_idxs, absorbing
+
+    def _update_td_errors(self):
+        state, state_idxs, action, reward, next_state, next_state_idxs, absorbing = self._get_samples_from_replay_memory()
+        q_next = self._next_q(next_state, next_state_idxs, absorbing)
+        q = reward + q_next
+        q_current = self.approximator.predict(state, action, idx=state_idxs)
+        
+        td_errors = (q - q_current)
+        for idx in range(self._n_games):
+            self._td_errors[idx] = td_errors[state_idxs==idx]
+
+    def _compute_lp(self):
+        td_errors = np.array([np.mean(np.array(a)) for a in self._td_errors])
+        abs_td_errors = np.abs(td_errors)
+        self._lp_probabilities = abs_td_errors / np.sum(abs_td_errors)
+        assert not True in np.isnan(self._lp_probabilities), \
+            f'NAN encountered \n lp_probas: {self._lp_probabilities}' \
+            f'isnan(): {np.isnan(self._lp_probabilities)}'
+
+    def _update_lp(self):
+        self._update_td_errors()
+        self._compute_lp()
+
+
+    def _next_q(self, next_state=None, next_state_idxs=None, absorbing=None):
+        if next_state is None:
+            next_state = self._next_state
+            next_state_idxs = self._next_state_idxs
+            absorbing = self._absorbing
+        
+        q = self.target_approximator.predict(next_state,
+                                             idx=next_state_idxs)
+
+        out_q = np.zeros(len(next_state_idxs))
+
+        _, counts = np.unique(next_state_idxs, return_counts=True)
+        cum_counts = np.cumsum(counts) - counts
+        for i, (n_samp_in_mdp, n_samp_until_mdp) in enumerate(zip(counts, cum_counts)):
+            start = n_samp_until_mdp
+            stop = start + n_samp_in_mdp
+            if np.any(absorbing[start:stop]):
+                q[start:stop] *= 1 - absorbing[start:stop].reshape(-1, 1)
 
             n_actions = self._n_action_per_head[i][0]
             out_q[start:stop] = np.max(q[start:stop, :n_actions], axis=1)
             out_q[start:stop] *= self.mdp_info.gamma[i]
-
+        
         return out_q
 
-
+        
 class DoubleDQN(DQN):
     """
     Double DQN algorithm.

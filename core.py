@@ -3,7 +3,7 @@ import numpy as np
 
 
 class Core(object):
-    def __init__(self, agent, mdp, callbacks=None):
+    def __init__(self, agent, mdp, sampling, epsilon_samp=0.1, callbacks=None):
         self.agent = agent
         self.mdp = mdp
         self._n_mdp = len(self.mdp)
@@ -16,8 +16,8 @@ class Core(object):
         self._episode_steps = [None for _ in range(self._n_mdp)]
         self._n_steps_per_fit = None
 
-        self._sampling = 'uniform'
-        self._lp_probabilities = np.ones((self._n_mdp,))
+        self._sampling = sampling
+        self._epsilon_samp = epsilon_samp
 
         self.update_lp_condition = lambda: False
 
@@ -30,7 +30,8 @@ class Core(object):
         fit_condition = \
             lambda: self._current_steps_counter >= self._n_steps_per_fit
         
-        self.update_lp_condition = lambda: self.agent._n_updates % self.agent._target_update_frequency == 0
+        self.update_lp_condition = lambda: self.agent._n_updates % self.agent._target_update_frequency == 0 \
+            and self._sampling == 'prism'
 
         self._run(n_steps, fit_condition, render, quiet)
 
@@ -54,17 +55,13 @@ class Core(object):
 
     def _sample_tasks(self):
         if self._sampling == 'prism':
-            sampled_tasks = np.random.choice(self._n_mdp, self._n_mdp, p=self._lp_probabilities)
+            probas = self._epsilon_samp / self._n_mdp \
+                + (1 - self._epsilon_samp) * self.agent._lp_probabilities
+            sampled_tasks = np.random.choice(self._n_mdp, self._n_mdp, p=probas)
             tasks = list(sampled_tasks)
         else:
             tasks = range(self._n_mdp)
         return tasks
-
-    def _compute_td_errors(self):
-        pass
-
-    def _update_lp(self):
-        pass
     
 
     def _run_impl(self, move_condition, fit_condition, steps_progress_bar,
@@ -94,8 +91,7 @@ class Core(object):
                 self._current_steps_counter = 0
 
                 if self.update_lp_condition():
-                    self._compute_td_errors()
-                    self._update_lp()
+                    self.agent._update_lp()
 
                 for c in self.callbacks:
                     callback_pars = dict(dataset=dataset)

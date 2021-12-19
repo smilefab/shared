@@ -10,6 +10,7 @@ import torch.optim as optim
 import pickle
 
 sys.path.append('..')
+sys.path.append('.')
 
 from mushroom_rl.approximators.parametric.torch_approximator import TorchApproximator
 from mushroom_rl.core.environment import MDPInfo
@@ -191,7 +192,7 @@ def experiment(args, idx):
                           **algorithm_params)
 
     # Algorithm
-    core = Core(agent, mdp)
+    core = Core(agent, mdp, sampling=args.sampling)
 
     # RUN
 
@@ -354,6 +355,10 @@ if __name__ == '__main__':
                          help='filename where to save the shared weights')
     arg_alg.add_argument("--unfreeze-epoch", type=int, default=0,
                          help="Number of epoch where to unfreeze shared weights.")
+    arg_alg.add_argument("--sampling", default='uniform',
+                         choices=['uniform', 'prism'],
+                         help='Sampling of tasks for learning process, choose '
+                         'between \"uniform\" and \"prism\".')
 
     arg_utils = parser.add_argument_group('Utils')
     arg_utils.add_argument('--use-cuda', action='store_true',
@@ -373,7 +378,17 @@ if __name__ == '__main__':
     arg_utils.add_argument('--postfix', type=str, default='',
                            help='Flag used to add a postfix to the folder name')
 
-    args = parser.parse_args()
+    # if no arguments given, take default args for prism
+    if not len(sys.argv) > 1:
+        args_str =  '--features sigmoid ' \
+                    '--n-exp 100 ' \
+                    '--game CartPole-v1 Acrobot-v1 MountainCar-v0 caronhill pendulum ' \
+                    '--gamma .99 .99 .99 .95 .95 ' \
+                    '--horizon 500 1000 1000 100 3000 ' \
+                    '--sampling prism' 
+        args = parser.parse_args(args_str.split())
+    else:
+        args = parser.parse_args()
 
     folder_name = './logs/gym_' + datetime.datetime.now().strftime(
         '%Y-%m-%d_%H-%M-%S') + args.postfix + '/'
