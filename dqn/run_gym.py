@@ -385,7 +385,7 @@ if __name__ == '__main__':
     # if no arguments given, take default args for prism
     if not len(sys.argv) > 1:
         args_str =  '--features sigmoid ' \
-                    '--n-exp 1 ' \
+                    '--n-exp 100 ' \
                     '--game CartPole-v1 Acrobot-v1 MountainCar-v0 caronhill pendulum ' \
                     '--gamma .99 .99 .99 .95 .95 ' \
                     '--horizon 500 1000 1000 100 3000 ' \
