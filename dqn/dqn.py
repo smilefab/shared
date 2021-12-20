@@ -24,7 +24,7 @@ class DQN(Agent):
                  history_length=4, n_input_per_mdp=None, replay_memory=None,
                  target_update_frequency=2500, fit_params=None,
                  approximator_params=None, n_games=1, clip_reward=True,
-                 dtype=np.uint8):
+                 n_td_samples_replay_memory=1000, dtype=np.uint8):
         self._fit_params = dict() if fit_params is None else fit_params
 
         self._batch_size = batch_size
@@ -85,7 +85,7 @@ class DQN(Agent):
         self._idxs = np.zeros(n_samples, dtype=np.int)
         self._is_weight = np.zeros(n_samples)
 
-        self._n_td_samples_replay_memory_per_task = 1000 #TODO: parameters for init
+        self._n_td_samples_replay_memory_per_task = n_td_samples_replay_memory
         assert self._n_td_samples_replay_memory_per_task < max_replay_size
         self._td_errors = [[] for i in range(self._n_games)]
         self._lp_probabilities = np.ones(self._n_games) / self._n_games
@@ -231,13 +231,13 @@ class DQN(Agent):
         next_state_idxs = np.zeros(sum(n_samples), np.int64)
         next_state = np.zeros((sum(n_samples), state_dim))
         absorbing = np.zeros(sum(n_samples))
-        start = 0 #TODO: eliminate start/stop
+        start = 0
         stop = 0
 
         # Getting samples out of the replay memory
         for i in range(len(self._replay_memory)):
             game_state, game_action, game_reward, game_next_state, game_absorbing, _ = self._replay_memory[i].get(
-                n_samples[i])#, replace=False) #TODO: Question: where does arg replace come from?
+                n_samples[i])
 
             stop = stop + n_samples[i]
 

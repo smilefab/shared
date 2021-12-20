@@ -179,7 +179,8 @@ def experiment(args, idx):
         n_actions_per_head=n_actions_per_head,
         clip_reward=False,
         history_length=args.history_length,
-        dtype=np.float32
+        dtype=np.float32,
+        n_td_samples_replay_memory=args.n_td_samples_replay_memory
     )
 
     if args.algorithm == 'dqn':
@@ -359,6 +360,9 @@ if __name__ == '__main__':
                          choices=['uniform', 'prism'],
                          help='Sampling of tasks for learning process, choose '
                          'between \"uniform\" and \"prism\".')
+    arg_alg.add_argument('--n_td_samples_replay_memory', type=int, default=1000,
+                         help='Number of samples per task used to update the td '
+                         'error. Only used for Prism sampling')
 
     arg_utils = parser.add_argument_group('Utils')
     arg_utils.add_argument('--use-cuda', action='store_true',
@@ -381,7 +385,7 @@ if __name__ == '__main__':
     # if no arguments given, take default args for prism
     if not len(sys.argv) > 1:
         args_str =  '--features sigmoid ' \
-                    '--n-exp 100 ' \
+                    '--n-exp 1 ' \
                     '--game CartPole-v1 Acrobot-v1 MountainCar-v0 caronhill pendulum ' \
                     '--gamma .99 .99 .99 .95 .95 ' \
                     '--horizon 500 1000 1000 100 3000 ' \

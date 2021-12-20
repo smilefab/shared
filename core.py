@@ -33,7 +33,7 @@ class Core(object):
         self.update_lp_condition = lambda: self.agent._n_updates % self.agent._target_update_frequency == 0 \
             and self._sampling == 'prism'
 
-        self._run(n_steps, fit_condition, render, quiet)
+        self._run(n_steps, fit_condition, render, quiet, eval=False)
 
     def evaluate(self, n_steps=None, render=False,
                  quiet=False):
@@ -41,9 +41,9 @@ class Core(object):
 
         self.update_lp_condition = lambda: False
 
-        return self._run(n_steps, fit_condition, render, quiet)
+        return self._run(n_steps, fit_condition, render, quiet, eval=True)
 
-    def _run(self, n_steps, fit_condition, render, quiet):
+    def _run(self, n_steps, fit_condition, render, quiet, eval):
         move_condition = lambda: self._total_steps_counter < n_steps
 
         steps_progress_bar = tqdm(total=n_steps,
@@ -51,28 +51,29 @@ class Core(object):
                                   leave=False)
 
         return self._run_impl(move_condition, fit_condition, steps_progress_bar,
-                              render)
+                              render, eval)
 
-    def _sample_tasks(self):
-        if self._sampling == 'prism':
+    def _sample_tasks(self, eval):
+        if self._sampling == 'uniform' or eval:
+            tasks = list(range(self._n_mdp))
+        elif self._sampling == 'prism':
             probas = self._epsilon_samp / self._n_mdp \
                 + (1 - self._epsilon_samp) * self.agent._lp_probabilities
             sampled_tasks = np.random.choice(self._n_mdp, self._n_mdp, p=probas)
             tasks = list(sampled_tasks)
-        else:
-            tasks = range(self._n_mdp)
+        assert tasks is not None, 'problem with task sampling'
         return tasks
     
 
     def _run_impl(self, move_condition, fit_condition, steps_progress_bar,
-                  render):
+                  render, eval):
         self._total_steps_counter = 0
         self._current_steps_counter = 0
 
         dataset = list()
         last = [True] * self._n_mdp
         while move_condition():
-            tasks = self._sample_tasks()
+            tasks = self._sample_tasks(eval)
             for i in tasks:
                 if last[i]:
                     self.reset(i)

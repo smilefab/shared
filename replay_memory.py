@@ -3,7 +3,7 @@ import numpy as np
 from mushroom_rl.utils.replay_memory import PrioritizedReplayMemory, ReplayMemory, SumTree
 
 
-class ReplayMemory(ReplayMemory):
+class ReplayMemory(ReplayMemory): #TODO: method get(...) can extract same sample multiple times.
     def add(self, dataset):
         for i in range(len(dataset)):
             self._states[self._idx] = dataset[i][0][1]
