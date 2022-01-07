@@ -20,19 +20,11 @@ activation = ['sigmoid']
 n_games = len(games)
 n_settings = len(reg) * len(activation)
 
-import os 
-print(os.getcwd())
-
 single_scores = np.load('dqn/noreg-sigmoid/scores.npy')
 multi_scores = np.load('multidqn/noreg-sigmoid/scores.npy')
 prism_scores = np.load('dqn_prism/noreg-sigmoid/scores.npy')
 
 first = prism_scores[:,0,:]
-for i in range(n_games):
-    print(np.isclose(first, prism_scores[:,i,:]).all())
-
-print(single_scores.shape, multi_scores.shape, prism_scores.shape)
-
 
 for i, g in enumerate(games):
     j = 1
