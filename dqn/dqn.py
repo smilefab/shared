@@ -24,7 +24,7 @@ class DQN(Agent):
                  history_length=4, n_input_per_mdp=None, replay_memory=None,
                  target_update_frequency=2500, fit_params=None,
                  approximator_params=None, n_games=1, clip_reward=True,
-                 n_td_samples_replay_memory=1000, dtype=np.uint8):
+                 batch_size_td=1000, gamma_sampling=0.99, dtype=np.uint8):
         self._fit_params = dict() if fit_params is None else fit_params
 
         self._batch_size = batch_size
@@ -85,10 +85,14 @@ class DQN(Agent):
         self._idxs = np.zeros(n_samples, dtype=np.int)
         self._is_weight = np.zeros(n_samples)
 
-        self._n_td_samples_replay_memory_per_task = n_td_samples_replay_memory
-        assert self._n_td_samples_replay_memory_per_task < max_replay_size
+        self._batch_size_td = batch_size_td
+        assert self._batch_size_td < max_replay_size
         self._td_errors = [[] for i in range(self._n_games)]
+        self._lp = np.zeros(self._n_games)
         self._lp_probabilities = np.ones(self._n_games) / self._n_games
+        self._mdp_min_max = np.array([[0, -1, -1, -1, -1],
+                                      [1,  0,  0,  1,  0]])
+        self._gamma_sampling = gamma_sampling
 
 
     def fit(self, dataset):
@@ -212,15 +216,16 @@ class DQN(Agent):
         self.target_approximator.model.set_weights(
             self.approximator.model.get_weights())
 
-    def _get_samples_from_replay_memory(self):
+    def _get_samples_from_replay_memory(self, tasks=None):
+        tasks = np.arange(self._n_games) if tasks is None else tasks
         n_samples = np.zeros(self._n_games, np.int64)
 
         # Getting amount of samples from each task in the replay memory
-        for i in range(len(self._replay_memory)):
+        for i in tasks:
             if self._replay_memory[i]._full:
-                n_samples[i] = self._n_td_samples_replay_memory_per_task
+                n_samples[i] = self._batch_size_td
             else:
-                n_samples[i] = min(int(self._replay_memory[i]._idx), self._n_td_samples_replay_memory_per_task)
+                n_samples[i] = min(int(self._replay_memory[i]._idx), self._batch_size_td)
 
         # Initializing variables
         state_dim = self._state.shape[1]
@@ -235,7 +240,7 @@ class DQN(Agent):
         stop = 0
 
         # Getting samples out of the replay memory
-        for i in range(len(self._replay_memory)):
+        for i in tasks:
             game_state, game_action, game_reward, game_next_state, game_absorbing, _ = self._replay_memory[i].get(
                 n_samples[i])
 
@@ -253,37 +258,53 @@ class DQN(Agent):
         
         return state, state_idxs, action, reward, next_state, next_state_idxs, absorbing
 
-    def _update_td_errors(self):
-        state, state_idxs, action, reward, next_state, next_state_idxs, absorbing = self._get_samples_from_replay_memory()
-        q_next = self._next_q(next_state, next_state_idxs, absorbing)
+    def _update_td_errors(self, tasks):
+        state, state_idxs, action, reward, next_state, next_state_idxs, absorbing = self._get_samples_from_replay_memory(tasks)
+        q_next = self._next_q(next_state, next_state_idxs, absorbing, target_approx=False)
         q = reward + q_next
         q_current = self.approximator.predict(state, action, idx=state_idxs)
         
         td_errors = (q - q_current)
-        for idx in range(self._n_games):
+        for idx in tasks:
             self._td_errors[idx] = td_errors[state_idxs==idx]
+        
+    def _normalize_lp(self, lp): # TODO: make cleaner using numpy magic
+        normalized = []
+        for i in range(self._n_games):
+            R_max = self._mdp_min_max[1, i]
+            R_min = self._mdp_min_max[0, i]
+            normalized.append(lp[i] / ((R_max - R_min)/(1-self._gamma_sampling)))
+        return np.array(normalized).copy()
 
-    def _compute_lp(self):
-        td_errors = np.array([np.mean(np.array(a)) for a in self._td_errors])
+    def _compute_lp(self, norm):
+        td_errors = np.array([np.mean(np.array(a)) for a in self._td_errors])   # TODO: optimize: only update new values in td_errors
         abs_td_errors = np.abs(td_errors)
+        if norm:
+            self._lp = self._normalize_lp(abs_td_errors) if norm else abs_td_errors
         self._lp_probabilities = abs_td_errors / np.sum(abs_td_errors)
         assert not True in np.isnan(self._lp_probabilities), \
             f'NAN encountered \n lp_probas: {self._lp_probabilities}' \
             f'isnan(): {np.isnan(self._lp_probabilities)}'
 
-    def _update_lp(self):
-        self._update_td_errors()
-        self._compute_lp()
+    def update_lp(self, norm=False, tasks=None):
+        tasks = np.arange(self._n_games) if tasks is None else tasks
+        if not True in [self._replay_memory[i].size == 0 for i in tasks]:
+            self._update_td_errors(tasks)
+            self._compute_lp(norm)
 
 
-    def _next_q(self, next_state=None, next_state_idxs=None, absorbing=None):
+    def _next_q(self, next_state=None, next_state_idxs=None, absorbing=None, target_approx=True):
         if next_state is None:
             next_state = self._next_state
             next_state_idxs = self._next_state_idxs
             absorbing = self._absorbing
         
-        q = self.target_approximator.predict(next_state,
+        if target_approx:
+            q = self.target_approximator.predict(next_state,
                                              idx=next_state_idxs)
+        else:
+            q = self.approximator.predict(next_state,
+                                            idx=next_state_idxs)
 
         out_q = np.zeros(len(next_state_idxs))
 

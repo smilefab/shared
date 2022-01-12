@@ -120,6 +120,7 @@ def experiment(args, idx):
         test_samples = 20
         evaluation_frequency = 50
         max_steps = 1000
+        lp_update_frequency = 1
     else:
         initial_replay_size = args.initial_replay_size
         max_replay_size = args.max_replay_size
@@ -128,6 +129,7 @@ def experiment(args, idx):
         test_samples = args.test_samples
         evaluation_frequency = args.evaluation_frequency
         max_steps = args.max_steps
+        lp_update_frequency = args.lp_update_frequency
 
     # Policy
     epsilon = LinearParameter(value=args.initial_exploration_rate,
@@ -180,7 +182,8 @@ def experiment(args, idx):
         clip_reward=False,
         history_length=args.history_length,
         dtype=np.float32,
-        n_td_samples_replay_memory=args.n_td_samples_replay_memory
+        batch_size_td=args.batch_size_td,
+        gamma_sampling=args.gamma_sampling,
     )
 
     if args.algorithm == 'dqn':
@@ -193,7 +196,7 @@ def experiment(args, idx):
                           **algorithm_params)
 
     # Algorithm
-    core = Core(agent, mdp, sampling=args.sampling)
+    core = Core(agent, mdp, sampling=args.sampling, lp_update_frequency=lp_update_frequency)
 
     # RUN
 
@@ -238,7 +241,8 @@ def experiment(args, idx):
         # learning step
         pi.set_parameter(None)
         core.learn(n_steps=evaluation_frequency,
-                   n_steps_per_fit=train_frequency, quiet=args.quiet)
+                   n_steps_per_fit=train_frequency,
+                   quiet=args.quiet)
 
         print('- Evaluation:')
         # evaluation step
@@ -331,6 +335,9 @@ if __name__ == '__main__':
     arg_alg.add_argument("--train-frequency", type=int, default=1,
                          help='Number of learning steps before each fit of the'
                               'neural network.')
+    arg_alg.add_argument("--lp-update-frequency", type=int, default=100,
+                         help='Number of collected samples before each update'
+                              'of the learning progress (TD-error).')
     arg_alg.add_argument("--max-steps", type=int, default=50000,
                          help='Total number of learning steps.')
     arg_alg.add_argument("--final-exploration-frame", type=int, default=5000,
@@ -357,12 +364,15 @@ if __name__ == '__main__':
     arg_alg.add_argument("--unfreeze-epoch", type=int, default=0,
                          help="Number of epoch where to unfreeze shared weights.")
     arg_alg.add_argument("--sampling", default='uniform',
-                         choices=['uniform', 'prism'],
+                         choices=['uniform', 'prism', 'd-ucb'],
                          help='Sampling of tasks for learning process, choose '
-                         'between \"uniform\" and \"prism\".')
-    arg_alg.add_argument('--n_td_samples_replay_memory', type=int, default=1000,
+                         'between \"uniform\", \"prism\" and \"d-ucb\".')
+    arg_alg.add_argument('--batch-size-td', type=int, default=1000,
                          help='Number of samples per task used to update the td '
-                         'error. Only used for Prism sampling')
+                         'error. Not used for uniform sampling')
+    arg_alg.add_argument("--gamma-sampling", type=float, default=0.99,
+                         help="Gamma used for sampling new tasks. Only used "
+                              "for D-UCB sampling.")                           
 
     arg_utils = parser.add_argument_group('Utils')
     arg_utils.add_argument('--use-cuda', action='store_true',
@@ -384,12 +394,21 @@ if __name__ == '__main__':
 
     # if no arguments given, take default args for prism
     if not len(sys.argv) > 1:
+        # args_str =  '--features sigmoid ' \
+        #             '--n-exp 100 ' \
+        #             '--game CartPole-v1 Acrobot-v1 MountainCar-v0 caronhill pendulum ' \
+        #             '--gamma .99 .99 .99 .95 .95 ' \
+        #             '--horizon 500 1000 1000 100 3000 ' \
+        #             '--sampling prism' 
         args_str =  '--features sigmoid ' \
-                    '--n-exp 100 ' \
+                    '--n-exp 1 ' \
                     '--game CartPole-v1 Acrobot-v1 MountainCar-v0 caronhill pendulum ' \
                     '--gamma .99 .99 .99 .95 .95 ' \
                     '--horizon 500 1000 1000 100 3000 ' \
-                    '--sampling prism' 
+                    '--sampling d-ucb ' \
+                    '--gamma-sampling 0.99 ' \
+                    '--lp-update-frequency 1 ' \
+                    '--batch-size-td 32 '
         args = parser.parse_args(args_str.split())
     else:
         args = parser.parse_args()
