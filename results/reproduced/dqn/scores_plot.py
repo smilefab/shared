@@ -1,6 +1,9 @@
 import numpy as np
 import scipy.stats as st
 from matplotlib import pyplot as plt
+import os
+
+os.chdir('C:/Users/Fabian/Documents/Master/LR - IP/Project/shared/results/reproduced/dqn')
 
 
 def get_mean_and_confidence(data):

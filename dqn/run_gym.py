@@ -265,7 +265,7 @@ def experiment(args, idx):
         if args.save:
             np.save(folder_name + 'weights-exp-%d-%d.npy' % (idx, n_epoch),
                     agent.approximator.get_weights())
-
+        
         np.save(folder_name + 'scores-exp-%d.npy' % idx, scores)
         np.save(folder_name + 'loss-exp-%d.npy' % idx,
                 agent.approximator.model._loss.get_losses())
@@ -273,7 +273,7 @@ def experiment(args, idx):
     if args.save_shared:
         pickle.dump(best_weights, open(args.save_shared, 'wb'))
 
-    return scores, agent.approximator.model._loss.get_losses()
+    return scores, agent.approximator.model._loss.get_losses(), np.array(core._tasks_list)
 
 
 if __name__ == '__main__':
@@ -364,9 +364,9 @@ if __name__ == '__main__':
     arg_alg.add_argument("--unfreeze-epoch", type=int, default=0,
                          help="Number of epoch where to unfreeze shared weights.")
     arg_alg.add_argument("--sampling", default='uniform',
-                         choices=['uniform', 'prism', 'd-ucb'],
+                         choices=['uniform', 'prism', 'd-ucb', 't-d-ucb'],
                          help='Sampling of tasks for learning process, choose '
-                         'between \"uniform\", \"prism\" and \"d-ucb\".')
+                         'between \"uniform\", \"prism\", \"d-ucb\" and \"t-d-ucb\".')
     arg_alg.add_argument('--batch-size-td', type=int, default=1000,
                          help='Number of samples per task used to update the td '
                          'error. Not used for uniform sampling')
@@ -394,21 +394,23 @@ if __name__ == '__main__':
 
     # if no arguments given, take default args for prism
     if not len(sys.argv) > 1:
-        # args_str =  '--features sigmoid ' \
-        #             '--n-exp 100 ' \
-        #             '--game CartPole-v1 Acrobot-v1 MountainCar-v0 caronhill pendulum ' \
-        #             '--gamma .99 .99 .99 .95 .95 ' \
-        #             '--horizon 500 1000 1000 100 3000 ' \
-        #             '--sampling prism' 
         args_str =  '--features sigmoid ' \
-                    '--n-exp 1 ' \
+                    '--n-exp 6 ' \
                     '--game CartPole-v1 Acrobot-v1 MountainCar-v0 caronhill pendulum ' \
                     '--gamma .99 .99 .99 .95 .95 ' \
                     '--horizon 500 1000 1000 100 3000 ' \
-                    '--sampling d-ucb ' \
-                    '--gamma-sampling 0.99 ' \
-                    '--lp-update-frequency 1 ' \
-                    '--batch-size-td 32 '
+                    '--sampling prism' 
+        # args_str =  '--features sigmoid ' \
+        #             '--n-exp 6 ' \
+        #             '--game CartPole-v1 Acrobot-v1 MountainCar-v0 caronhill pendulum ' \
+        #             '--gamma .99 .99 .99 .95 .95 ' \
+        #             '--horizon 500 1000 1000 100 3000 ' \
+        #             '--sampling d-ucb ' \
+        #             '--gamma-sampling 0.99 ' \
+        #             '--lp-update-frequency 1 ' \
+        #             '--batch-size-td 32 ' \
+        #             '--evaluation-frequency 5000 ' \
+        #             '--max-steps 250000'
         args = parser.parse_args(args_str.split())
     else:
         args = parser.parse_args()
@@ -424,6 +426,8 @@ if __name__ == '__main__':
 
     scores = np.array([o[0] for o in out])
     loss = np.array([o[1] for o in out])
+    tasks = np.array([o[2] for o in out])
 
     np.save(folder_name + 'scores.npy', scores)
     np.save(folder_name + 'loss.npy', loss)
+    np.save(folder_name + 'tasks.npy', tasks)
