@@ -44,9 +44,7 @@ class Core(object):
             self.agent.update_lp(self._norm)
             self._update_ucb_params(np.arange(self._n_mdp))
             self._init = False
-        unique, count = np.unique(np.array(self._tasks_list).flatten(), return_counts=True)
-        # print(unique)
-        # print(count)
+
 
     def evaluate(self, n_steps=None, render=False,
                  quiet=False):
@@ -59,9 +57,9 @@ class Core(object):
     def _run(self, n_steps, fit_condition, render, quiet, eval):
         move_condition = lambda: self._epoch_steps < n_steps
 
-        # steps_progress_bar = tqdm(total=n_steps,
-        #                           dynamic_ncols=True, disable=quiet,
-        #                           leave=False)
+        steps_progress_bar = tqdm(total=n_steps,
+                                  dynamic_ncols=True, disable=quiet,
+                                  leave=False)
         steps_progress_bar = None
 
         return self._run_impl(move_condition, fit_condition, steps_progress_bar,
@@ -78,9 +76,9 @@ class Core(object):
 
     def _sample_tasks(self, eval):
         if eval or self._init:
-            return self._total_learning_steps % self._n_mdp
+            return list(np.arange(self._n_mdp))
         if self._sampling == 'uniform':
-            self._tasks_list.append([self._total_learning_steps % self._n_mdp])
+            self._tasks_list.append(list(np.arange(self._n_mdp)))
         elif self._sampling == 'prism':
             probas = self._epsilon_samp / self._n_mdp \
                 + (1 - self._epsilon_samp) * self.agent._lp_probabilities
@@ -129,11 +127,9 @@ class Core(object):
 
             
             if self.update_lp_condition():
+                self.agent.update_lp(self._norm, tasks)
                 if self._sampling in ['d-ucb', 't-d-ucb']:
-                    self.agent.update_lp(self._norm, tasks)
                     self._update_ucb_params(tasks)
-                else:
-                    self.agent.update_lp(self._norm)
 
             if fit_condition():
                 self.agent.fit(dataset)

@@ -287,7 +287,10 @@ class DQN(Agent):
             f'isnan(): {np.isnan(self._lp_probabilities)}'
 
     def update_lp(self, norm=False, tasks=None):
-        tasks = np.arange(self._n_games) if tasks is None else tasks
+        if tasks is None:
+            tasks = np.arange(self._n_games)
+        elif type(tasks) != list:
+            tasks = [tasks]
         if not True in [self._replay_memory[i].size == 0 for i in tasks]:
             self._update_td_errors(tasks)
             self._compute_lp(norm)
