@@ -39,7 +39,7 @@ class DDPG(Agent):
         self._n_actions_per_head = n_actions_per_head
         self._max_actions = max(n_actions_per_head)[0]
         self._history_length = history_length
-        self._tau = tau
+        self._tau = tau #TODO: equal to target_update_frequency?
 
         self._replay_memory = [
             ReplayMemory(initial_replay_size,

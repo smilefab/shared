@@ -44,9 +44,7 @@ class Core(object):
             self.agent.update_lp(self._norm)
             self._update_ucb_params(np.arange(self._n_mdp))
             self._init = False
-        unique, count = np.unique(np.array(self._tasks_list).flatten(), return_counts=True)
-        # print(unique)
-        # print(count)
+        
 
     def evaluate(self, n_steps=None, render=False,
                  quiet=False):
@@ -59,9 +57,9 @@ class Core(object):
     def _run(self, n_steps, fit_condition, render, quiet, eval):
         move_condition = lambda: self._epoch_steps < n_steps
 
-        # steps_progress_bar = tqdm(total=n_steps,
-        #                           dynamic_ncols=True, disable=quiet,
-        #                           leave=False)
+        steps_progress_bar = tqdm(total=n_steps,
+                                  dynamic_ncols=True, disable=quiet,
+                                  leave=False)
         steps_progress_bar = None
 
         return self._run_impl(move_condition, fit_condition, steps_progress_bar,
@@ -78,27 +76,28 @@ class Core(object):
 
     def _sample_tasks(self, eval):
         if eval or self._init:
-            return self._total_learning_steps % self._n_mdp
+            return list(np.arange(self._n_mdp))
         if self._sampling == 'uniform':
-            self._tasks_list.append([self._total_learning_steps % self._n_mdp])
+            self._tasks_list.append(self._total_learning_steps % self._n_mdp)
+            # self._tasks_list.append(list(np.arange(self._n_mdp)))
         elif self._sampling == 'prism':
             probas = self._epsilon_samp / self._n_mdp \
                 + (1 - self._epsilon_samp) * self.agent._lp_probabilities
-            sampled_tasks = np.random.choice(self._n_mdp, self._n_mdp, p=probas)
-            self._tasks_list.append(list(sampled_tasks))
+            sampled_task = np.random.choice(self._n_mdp, self._n_mdp, p=probas)
+            self._tasks_list.append(list(sampled_task))
         elif self._sampling == 'd-ucb':
             B = 0.5
             Xi = 0.002
             X_t = self._X_t_sum / self._N_t
             n_t = np.sum(self._N_t)
             c_t = 2 * B * np.sqrt(Xi * np.log(n_t) / self._N_t)
-            self._tasks_list.append([np.argmax(X_t + c_t)])
+            self._tasks_list.append(int(np.argmax(X_t + c_t)))
         elif self._sampling == 't-d-ucb':
             X_t = self._X_t_sum / self._N_t
             n_t = np.sum(self._N_t)
             Xi = np.max(np.concatenate((np.multiply(X_t, (1 - X_t)) , np.array([0.002])), axis=0))
             c_t = np.sqrt(Xi * np.log(n_t) / self._N_t)
-            self._tasks_list.append([np.argmax(X_t + c_t)])
+            self._tasks_list.append(int(np.argmax(X_t + c_t)))
         assert self._tasks_list[-1] is not None, 'problem with task sampling'
         return self._tasks_list[-1]
     
@@ -112,28 +111,28 @@ class Core(object):
         last = [True] * self._n_mdp
         while move_condition():
             tasks = self._sample_tasks(eval)
-            for i in tasks:
-                if last[i]:
-                    self.reset(i)
+            if type(tasks) != list:
+                tasks = [tasks]
+            for task in tasks:
+                if last[task]:
+                    self.reset(task)
 
-                sample = self._step(i, render)
+                sample = self._step(task, render)
                 dataset.append(sample)
 
-                last[i] = sample[-1]
+                last[task] = sample[-1]
 
             if not eval:
                 self._total_learning_steps += 1
             self._epoch_steps += 1
-            self._steps_since_last_fit += 1
-            # steps_progress_bar.update(1)
+            self._steps_since_last_fit += 1 # TODO: Think about assert _steps_since_last_fit % n_games == 0
+                # steps_progress_bar.update(1)
 
             
             if self.update_lp_condition():
+                self.agent.update_lp(self._norm, tasks)
                 if self._sampling in ['d-ucb', 't-d-ucb']:
-                    self.agent.update_lp(self._norm, tasks)
                     self._update_ucb_params(tasks)
-                else:
-                    self.agent.update_lp(self._norm)
 
             if fit_condition():
                 self.agent.fit(dataset)

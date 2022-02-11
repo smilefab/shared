@@ -1,0 +1,1 @@
+pscp -load deramo@mn01 "deramo@mn01.ias.Informatik.tu-darmstadt.de:/home/deramo/Projects/active-sampling/shared/README.md" "C:\\Users\\Fabian\\Documents\\Master\\LR - IP\\Project\\shared\\utils"

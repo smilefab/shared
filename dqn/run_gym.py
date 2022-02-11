@@ -326,21 +326,21 @@ if __name__ == '__main__':
                          help='Batch size for each fit of the network.')
     arg_alg.add_argument("--history-length", type=int, default=1,
                          help='Number of frames composing a state.')
-    arg_alg.add_argument("--target-update-frequency", type=int, default=100,
+    arg_alg.add_argument("--target-update-frequency", type=int, default=100, # changed to 500
                          help='Number of collected samples before each update'
                               'of the target network.')
-    arg_alg.add_argument("--evaluation-frequency", type=int, default=1000,
+    arg_alg.add_argument("--evaluation-frequency", type=int, default=5000, # changed to 5000
                          help='Number of learning step before each evaluation.'
                               'This number represents an epoch.')
-    arg_alg.add_argument("--train-frequency", type=int, default=1,
+    arg_alg.add_argument("--train-frequency", type=int, default=5, # changed to 5
                          help='Number of learning steps before each fit of the'
                               'neural network.')
-    arg_alg.add_argument("--lp-update-frequency", type=int, default=100,
+    arg_alg.add_argument("--lp-update-frequency", type=int, default=500, # changed to 500
                          help='Number of collected samples before each update'
                               'of the learning progress (TD-error).')
-    arg_alg.add_argument("--max-steps", type=int, default=50000,
+    arg_alg.add_argument("--max-steps", type=int, default=250000,
                          help='Total number of learning steps.')
-    arg_alg.add_argument("--final-exploration-frame", type=int, default=5000,
+    arg_alg.add_argument("--final-exploration-frame", type=int, default=25000, # changed to 25000
                          help='Number of steps until the exploration rate stops'
                               'decreasing.')
     arg_alg.add_argument("--initial-exploration-rate", type=float, default=1.,
@@ -395,11 +395,23 @@ if __name__ == '__main__':
     # if no arguments given, take default args for prism
     if not len(sys.argv) > 1:
         args_str =  '--features sigmoid ' \
-                    '--n-exp 6 ' \
+                    '--n-exp 1 ' \
                     '--game CartPole-v1 Acrobot-v1 MountainCar-v0 caronhill pendulum ' \
                     '--gamma .99 .99 .99 .95 .95 ' \
                     '--horizon 500 1000 1000 100 3000 ' \
-                    '--sampling prism' 
+                    '--sampling uniform ' \
+                    '--max-steps 250000'
+        # args_str =  '--features sigmoid ' \
+        #             '--n-exp 1 ' \
+        #             '--game CartPole-v1 Acrobot-v1 MountainCar-v0 caronhill pendulum ' \
+        #             '--gamma .99 .99 .99 .95 .95 ' \
+        #             '--horizon 500 1000 1000 100 3000 ' \
+        #             '--sampling prism ' \
+        #             '--target-update-frequency 100 ' \
+        #             '--evaluation-frequency 1000 ' \
+        #             '--max-steps 50000 ' \
+        #             '--final-exploration-frame 5000 ' \
+        #             '--train-frequency 1'
         # args_str =  '--features sigmoid ' \
         #             '--n-exp 6 ' \
         #             '--game CartPole-v1 Acrobot-v1 MountainCar-v0 caronhill pendulum ' \
