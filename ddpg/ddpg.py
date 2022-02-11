@@ -3,7 +3,7 @@ from copy import deepcopy
 import numpy as np
 
 import torch.nn as nn
-from mushroom_rl.algorithms import Agent
+from mushroom_rl.core.agent import Agent
 from mushroom_rl.approximators import Regressor
 
 from replay_memory import ReplayMemory
@@ -28,7 +28,8 @@ class DDPG(Agent):
                  mdp_info, batch_size, initial_replay_size, max_replay_size,
                  tau, actor_params, critic_params, policy_params,
                  n_actions_per_head, history_length=1, n_input_per_mdp=None,
-                 n_games=1, dtype=np.uint8):
+                 n_games=1, batch_size_td=1000, gamma_sampling=0.99,
+                 dtype=np.uint8):
         self._batch_size = batch_size
         self._n_games = n_games
         if n_input_per_mdp is None:
@@ -164,21 +165,48 @@ class DDPG(Agent):
         actor_weights += (1 - self._tau) * self._target_actor_approximator.get_weights()
         self._target_actor_approximator.set_weights(actor_weights)
 
-    def _next_q(self):
-        a = self._target_actor_approximator(self._next_state,
-                                            idx=self._next_state_idxs)
-        q = self._target_critic_approximator(self._next_state, a,
-                                             idx=self._next_state_idxs).ravel()
+    def _get_samples_from_replay_memory(self, tasks=None):
+        pass
 
-        out_q = np.zeros(self._batch_size * self._n_games)
-        for i in range(self._n_games):
-            start = self._batch_size * i
-            stop = start + self._batch_size
+    def _update_td_errors(self, tasks):
+        pass
+
+    def _normalize_lp(self, lp):
+        pass
+
+    def _compute_lp(self, norm):
+        pass
+
+    def update_lp(self, norm=False, tasks=None):
+        pass
+
+    def _next_q(self, next_state=None, next_state_idxs=None, absorbing=None, target_approx=True):
+        if next_state is None:
+            next_state = self._next_state
+            next_state_idxs = self._next_state_idxs
+            absorbing = self._absorbing
+
+        if target_approx:
+            a = self._target_actor_approximator(self._next_state,
+                                                idx=self._next_state_idxs)
+            q = self._target_critic_approximator(self._next_state, a,
+                                                idx=self._next_state_idxs).ravel()
+        else:
+            a = self._actor_approximator(self._next_state,
+                                                idx=self._next_state_idxs)
+            q = self._critic_approximator(self._next_state, a,
+                                                idx=self._next_state_idxs).ravel()
+
+        out_q = np.zeros(len(next_state_idxs))
+
+        _, counts = np.unique(next_state_idxs, return_counts=True)
+        cum_counts = np.cumsum(counts) - counts
+        for i, (n_samp_in_mdp, n_samp_until_mdp) in enumerate(zip(counts, cum_counts)):
+            start = n_samp_until_mdp
+            stop = start + n_samp_in_mdp
 
             out_q[start:stop] = q[start:stop] * self.mdp_info.gamma[i]
             if np.any(self._absorbing[start:stop]):
-                out_q[start:stop] = out_q[start:stop] * (
-                    1 - self._absorbing[start:stop]
-                )
+                out_q[start:stop] *= 1 - self._absorbing[start:stop]
 
         return out_q
