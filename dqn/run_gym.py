@@ -196,7 +196,9 @@ def experiment(args, idx):
                           **algorithm_params)
 
     # Algorithm
-    core = Core(agent, mdp, sampling=args.sampling, lp_update_frequency=lp_update_frequency)
+    epsilon_samp = Parameter(value=0.1)
+    core = Core(agent, mdp, sampling=args.sampling, epsilon_samp= epsilon_samp,
+                lp_update_frequency=lp_update_frequency)
 
     # RUN
 
@@ -269,6 +271,8 @@ def experiment(args, idx):
         np.save(folder_name + 'scores-exp-%d.npy' % idx, scores)
         np.save(folder_name + 'loss-exp-%d.npy' % idx,
                 agent.approximator.model._loss.get_losses())
+
+    print(f'Approx updates: {agent._n_updates}, Target updates: {agent._n_target_updates}')
 
     if args.save_shared:
         pickle.dump(best_weights, open(args.save_shared, 'wb'))
@@ -395,7 +399,7 @@ if __name__ == '__main__':
     # if no arguments given, take default args for prism
     if not len(sys.argv) > 1:
         args_str =  '--features sigmoid ' \
-                    '--n-exp 6 ' \
+                    '--n-exp 1 ' \
                     '--game CartPole-v1 Acrobot-v1 MountainCar-v0 caronhill pendulum ' \
                     '--gamma .99 .99 .99 .95 .95 ' \
                     '--horizon 500 1000 1000 100 3000 ' \
@@ -415,7 +419,7 @@ if __name__ == '__main__':
     else:
         args = parser.parse_args()
 
-    folder_name = './logs/gym_' + datetime.datetime.now().strftime(
+    folder_name = './logs/dqn/gym_' + datetime.datetime.now().strftime(
         '%Y-%m-%d_%H-%M-%S') + args.postfix + '/'
     pathlib.Path(folder_name).mkdir(parents=True)
     with open(folder_name + 'args.pkl', 'wb') as f:

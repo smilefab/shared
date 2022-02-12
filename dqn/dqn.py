@@ -53,6 +53,7 @@ class DQN(Agent):
             self._fit = self._fit_standard
 
         self._n_updates = 0
+        self._n_target_updates = 0
 
         apprx_params_train = deepcopy(approximator_params)
         apprx_params_target = deepcopy(approximator_params)
@@ -100,6 +101,7 @@ class DQN(Agent):
 
         self._n_updates += 1
         if self._n_updates % self._target_update_frequency == 0:
+            self._n_target_updates += 1
             self._update_target()
 
     def _fit_standard(self, dataset):

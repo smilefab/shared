@@ -4,7 +4,8 @@ import numpy as np
 
 
 class Core(object):
-    def __init__(self, agent, mdp, sampling, epsilon_samp=0.1, lp_update_frequency=1, callbacks=None):
+    def __init__(self, agent, mdp, sampling, epsilon_samp,
+                 lp_update_frequency=1, callbacks=None):
         self.agent = agent
         self.mdp = mdp
         self._n_mdp = len(self.mdp)
@@ -80,8 +81,9 @@ class Core(object):
         if self._sampling == 'uniform':
             self._tasks_list.append(list(np.arange(self._n_mdp)))
         elif self._sampling == 'prism':
-            probas = self._epsilon_samp / self._n_mdp \
-                + (1 - self._epsilon_samp) * self.agent._lp_probabilities
+            eps = self._epsilon_samp()
+            probas = eps / self._n_mdp \
+                + (1 - eps) * self.agent._lp_probabilities
             sampled_tasks = np.random.choice(self._n_mdp, self._n_mdp, p=probas)
             self._tasks_list.append(list(sampled_tasks))
         elif self._sampling == 'd-ucb':
