@@ -326,7 +326,7 @@ if __name__ == '__main__':
                          help='Batch size for each fit of the network.')
     arg_alg.add_argument("--history-length", type=int, default=1,
                          help='Number of frames composing a state.')
-    arg_alg.add_argument("--target-update-frequency", type=int, default=100, # changed to 500
+    arg_alg.add_argument("--target-update-frequency", type=int, default=500, # changed to 500
                          help='Number of collected samples before each update'
                               'of the target network.')
     arg_alg.add_argument("--evaluation-frequency", type=int, default=5000, # changed to 5000

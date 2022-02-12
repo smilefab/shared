@@ -79,12 +79,11 @@ class Core(object):
             return list(np.arange(self._n_mdp))
         if self._sampling == 'uniform':
             self._tasks_list.append(self._total_learning_steps % self._n_mdp)
-            # self._tasks_list.append(list(np.arange(self._n_mdp)))
         elif self._sampling == 'prism':
             probas = self._epsilon_samp / self._n_mdp \
                 + (1 - self._epsilon_samp) * self.agent._lp_probabilities
-            sampled_task = np.random.choice(self._n_mdp, self._n_mdp, p=probas)
-            self._tasks_list.append(list(sampled_task))
+            sampled_task = np.random.choice(self._n_mdp, 1, p=probas)
+            self._tasks_list.append(int(sampled_task))
         elif self._sampling == 'd-ucb':
             B = 0.5
             Xi = 0.002
